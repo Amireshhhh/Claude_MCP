@@ -1,0 +1,15 @@
+{
+  "//": "Copy this block into your Claude Desktop config file, then restart Claude Desktop.",
+  "//_macos_path": "~/Library/Application Support/Claude/claude_desktop_config.json",
+  "//_windows_path": "%APPDATA%\\Claude\\claude_desktop_config.json",
+  "//_replace": "Change ABSOLUTE_PATH_TO_REPO to the real absolute path on your machine.",
+  "mcpServers": {
+    "anthropic-docs": {
+      "command": "node",
+      "args": ["ABSOLUTE_PATH_TO_REPO/src/server.mjs"],
+      "env": {
+        "EMBEDDER": "local"
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "source": "mcp-overview.md",
+    "text": "The Model Context Protocol (MCP) is an open standard that connects AI applications to the systems where data and tools live. You write a server that exposes tools, resources, and prompts. Any MCP host, such as Claude Code, VS Code, or your own application, connects to that server and lets a model use those capabilities. MCP was created by Anthropic and released as an open standard in November 2024. It reuses the message-flow ideas of the Language Server Protocol and is transported over JSON-RPC 2.0. The goal is to solve the N-by-M integration problem: instead of building a custom connector for every pairing of model and tool, you build one MCP server and every compatible host can use it."
+  },
+  {
+    "source": "mcp-tools.md",
+    "text": "In MCP, a tool is a function the server exposes that a model can call. Each tool has a name, a description, and an input schema. The host lists the available tools, the model decides which to call and with what arguments, the host invokes the tool on the server, and the tool's result is returned to the model. Tools are the most common MCP primitive. The Anthropic Messages API MCP connector currently accesses only tools from remote servers: it queries the list_tools endpoint and exposes those functions to Claude. Other primitives like resources and prompts are handled by full MCP clients rather than the connector."
+  },
+  {
+    "source": "tool-use.md",
+    "text": "Claude supports tool use, also called function calling. You provide a list of tools, each with a name, description, and JSON input schema. When Claude decides to use a tool, the API response contains a tool_use content block with the tool name and input. Your code executes the tool and returns the result in a tool_result block referencing the tool_use id. You then call the API again with the updated message history. This loop repeats until Claude returns a final text answer with no further tool_use blocks. This request-execute-respond cycle is the core agentic loop."
+  },
+  {
+    "source": "mcp-connector.md",
+    "text": "The Anthropic Messages API supports remote MCP servers through the mcp_servers parameter. You pass an array of server configurations, each with a type of url, the server URL, and a name. Authentication uses the authorization_token parameter for OAuth bearer tokens. The feature requires a beta header. Responses contain mcp_tool_use and mcp_tool_result blocks. Use the mcp_servers parameter when you have remote servers reachable by URL and only need tool support. Use client-side helpers when you need local stdio servers, prompts, resources, or more control over the connection."
+  },
+  {
+    "source": "context-engineering.md",
+    "text": "Context engineering is the practice of deliberately managing what information enters a model's context window. For retrieval-augmented generation this means choosing a chunking strategy, selecting an embedding model, deciding how many chunks to retrieve, ordering them, and formatting them with their sources so the model can cite them. Good context engineering improves answer faithfulness and reduces hallucination because the model reasons over relevant, well-structured evidence rather than a raw document dump. Evaluation frameworks and quality gates measure whether these choices actually improve correctness and source grounding."
+  },
+  {
+    "source": "vector-search.md",
+    "text": "Vector search retrieves documents by semantic similarity rather than keyword overlap. Each document chunk is embedded into a dense vector. A query is embedded the same way, and the chunks whose vectors are most similar to the query vector, typically by cosine similarity, are returned. Cosine similarity measures the angle between two vectors and is independent of their magnitude. For small corpora an exact scan over all vectors returns the true nearest neighbours in milliseconds. Larger corpora use approximate nearest neighbour indexes such as HNSW to trade a little accuracy for speed."
+  }
+]
