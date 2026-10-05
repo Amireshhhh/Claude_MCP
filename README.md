@@ -1,94 +1,115 @@
 # anthropic-docs-mcp
 
-An MCP server that exposes semantic **vector search** over a documentation corpus as
-**tools**, plus a **Claude agentic loop** that calls those tools through the Model
-Context Protocol. Built to be small enough to understand completely and defend line
-by line.
+A Model Context Protocol (MCP) server that provides vector search over a small documentation corpus, together with a command-line agent that lets Claude call the server's tools.
 
-Everything here except the live API call in `scripts/agent.mjs` has been run end to end.
+The repository is a compact reference implementation. It contains about 450 lines of JavaScript covering text chunking, embeddings, cosine-similarity search, an MCP server, and a tool-use loop on the Anthropic Messages API.
 
-## What it demonstrates
-
-| Skill| Where it lives |
-|---|---|
-| MCP server (build + understand) | `src/server.mjs` — `registerTool` over stdio, MCP v2 |
-| Agentic tool-use loop on Claude | `scripts/agent.mjs` — request → `tool_use` → execute → `tool_result` → repeat |
-| Vector search | `src/retrieval.mjs` — chunking, embeddings, cosine top-k |
-| Context engineering | chunking + retrieval + source-tagged formatting feeding the model |
-| Anthropic fluency | corpus is Anthropic's own MCP/tool-use docs; loop uses the Messages API |
-
-## Architecture
+## How it works
 
 ```
-                 ┌──────────────────┐   MCP (JSON-RPC over stdio)   ┌────────────────────┐
-  your question  │  agent.mjs       │ ───── listTools / callTool ──▶│  server.mjs (MCP)  │
-  ───────────────▶  (MCP client +   │                               │  search_docs       │
-                 │   Claude loop)   │◀──── tool results ────────────│  get_doc           │
-                 └────────┬─────────┘                               └─────────┬──────────┘
-                          │ Messages API (tool_use / tool_result)             │
-                          ▼                                                   ▼
-                    api.anthropic.com                                  retrieval.mjs
-                                                                 (embed → cosine → top-k)
+ question ──▶ scripts/agent.mjs ──── MCP over stdio ────▶ src/server.mjs
+              (MCP client and                             tools: search_docs, get_doc
+               Claude tool loop)                                   │
+                     │                                             ▼
+                     ▼                                     src/retrieval.mjs
+             Anthropic Messages API                        (chunk, embed, rank)
 ```
 
-The server never talks to Claude directly. The **host** (Claude Desktop, or `agent.mjs`
-acting as host) owns the model connection; the server only exposes tools. That
-separation is the whole point of MCP.
+The server exposes two tools and never contacts the model. The host application, which is either Claude Desktop or `scripts/agent.mjs`, owns the model connection. It lists the server's tools, passes them to Claude, runs each tool call Claude requests, and returns the results until Claude gives a final answer.
 
-## Run it
+## Tools
+
+| Tool | Arguments | Returns |
+|---|---|---|
+| `search_docs` | `query` (string), `k` (integer 1 to 10, default 3) | The `k` most similar chunks, each with its source file and similarity score |
+| `get_doc` | `source` (string) | The full text of one document |
+
+Arguments are validated against a Zod schema before a handler runs.
+
+## Requirements
+
+- Node.js 18 or newer
+- An Anthropic API key, needed only for `scripts/agent.mjs`
+
+## Setup
 
 ```bash
+git clone https://github.com/Amireshhhh/Claude_MCP.git
+cd Claude_MCP
 npm install
-
-# 1. build the vector index from the corpus
-node scripts/build-index.mjs                 # real local embeddings (downloads MiniLM once)
-#   or, no downloads / offline:
-EMBEDDER=hash node scripts/build-index.mjs
-
-# 2. prove the MCP server works (client connects over stdio, lists + calls tools)
-EMBEDDER=hash node scripts/test-client.mjs
-
-# 3. run the unit tests
-node scripts/test-retrieval.mjs
-
-# 4. run the full agentic loop (needs your key)
-ANTHROPIC_API_KEY=sk-... node scripts/agent.mjs "How do I connect a remote MCP server to the API?"
+npm install @huggingface/transformers   # needed for the semantic embedder, see below
 ```
 
-To use it from **Claude Desktop** instead of the script, see
-`claude_desktop_config.example.json`.
+## Usage
 
-## The two embedders
+Build the vector index. It is written to `data/index.json`, which is not committed.
 
-`src/embedder.mjs` exposes one interface, `(texts) => Promise<number[][]>`, with two backends:
+```bash
+npm run build-index            # semantic embeddings, downloads the model on first run
+npm run build-index:offline    # hash embedder, no downloads
+```
 
-- **`makeLocalEmbedder()`** — real semantic embeddings via `@huggingface/transformers`
-  (`all-MiniLM-L6-v2`, 384-dim), fully local, no API key, no server. **Use this.**
-- **`makeHashEmbedder()`** — deterministic hashing embedding, zero dependencies, no
-  downloads. Real vectors but not semantic; used for offline tests and CI.
+Run the tests:
 
-Nothing downstream changes when you swap them — that is the point of the abstraction.
+```bash
+npm test             # retrieval unit tests
+npm run test:mcp     # starts the server and calls its tools through an MCP client
+```
 
-## Design decisions I can defend
+Ask a question through Claude:
 
-- **Exact cosine search, not an ANN index.** For a docs-sized corpus, scanning every
-  vector is sub-millisecond and returns the *true* top-k. HNSW would trade accuracy for
-  speed I don't need at this scale. (The corpus doc `vector-search.md` explains when
-  you'd switch.)
-- **Vectors persisted as JSON.** One file, human-inspectable, no database process to run.
-- **stdio transport.** The server runs as a child process of the host — no network, no
-  auth, no deployment. The same server can be served over Streamable HTTP for remote use.
-- **MCP tool schemas are Zod, validated before the handler runs**, so malformed tool
-  calls never reach my code.
+```bash
+export ANTHROPIC_API_KEY=...
+EMBEDDER=local node scripts/agent.mjs "How do I connect a remote MCP server to the API?"
+```
 
-## Honest scope
+The agent prints each tool call to stderr and the final answer to stdout. It stops after six model turns.
 
-This is a working prototype, not a deployed production system. It shows I can build and
-explain an MCP server, an agentic tool-use loop, and vector retrieval on Claude. It does
-**not** represent a year of production agentic systems or a live service with users.
+### Claude Desktop
 
-## Versions (pinned, verified 2026-08-28)
+Copy the `mcpServers` entry from `claude_desktop_config.example.json` into your Claude Desktop configuration file, replace `ABSOLUTE_PATH_TO_REPO` with the path to this repository, and restart Claude Desktop.
 
-- `@modelcontextprotocol/server` 2.0.0 · `@modelcontextprotocol/client` 2.0.0 (MCP 2026-07-28 spec)
-- `@anthropic-ai/sdk` 0.122.0
-- `@huggingface/transformers` 4.2.0 · `zod` 4.5.1 · Node ≥ 18
+## Embedders
+
+Set the `EMBEDDER` environment variable to choose one.
+
+| Value | Description |
+|---|---|
+| `local` | `all-MiniLM-L6-v2` (384 dimensions) through `@huggingface/transformers`. Runs on your machine with no API key. |
+| `hash` | Hashes each token into a 384-dimension bag-of-words vector. No dependencies and no downloads, but it matches on shared words, not meaning. Intended for tests and offline use. |
+
+Use the same embedder to build the index and to query it. The server and the build script use `local` unless `EMBEDDER=hash` is set. `scripts/agent.mjs` starts the server with `hash` unless you set `EMBEDDER` yourself.
+
+## Design notes
+
+- **Exact search.** Every query is compared against every chunk. At this corpus size that is fast and always returns the true top results, so an approximate nearest-neighbour index would add complexity for no benefit.
+- **Chunking.** Documents are split into windows of 180 words with a 40-word overlap.
+- **Storage.** The index is a single JSON file. There is no database to run.
+- **Transport.** The server uses stdio and runs as a child process of the host, so there is no network listener or authentication to configure.
+
+## Limitations
+
+- The corpus is six short documents about MCP, tool use and retrieval (`data/corpus.json`). Replace that file and rebuild the index to search your own content.
+- The index is held in memory and scanned linearly, which will not scale to a large corpus.
+- The agent has no retry logic, streaming or conversation memory.
+- The model name is set in `scripts/agent.mjs`.
+
+## Project layout
+
+```
+src/
+  server.mjs       MCP server and tool definitions
+  retrieval.mjs    chunking, cosine similarity, vector index
+  embedder.mjs     the two embedders
+scripts/
+  build-index.mjs      embeds the corpus and writes data/index.json
+  agent.mjs            MCP client and Claude tool-use loop
+  test-client.mjs      MCP integration test
+  test-retrieval.mjs   unit tests
+data/
+  corpus.json      source documents
+```
+
+## Dependencies
+
+`@modelcontextprotocol/server` and `@modelcontextprotocol/client` 2.0.0, `@anthropic-ai/sdk` 0.122.0, `zod` 4.5.1.
