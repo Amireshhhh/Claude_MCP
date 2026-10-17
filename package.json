@@ -8,16 +8,19 @@
     "build-index:offline": "EMBEDDER=hash node scripts/build-index.mjs",
     "test": "node scripts/test-retrieval.mjs",
     "test:mcp": "EMBEDDER=hash node scripts/test-client.mjs",
-    "agent": "node scripts/agent.mjs"
+    "agent": "node scripts/agent.mjs",
+    "test:mcp:local": "EMBEDDER=local node scripts/test-client.mjs",
+    "stress": "EMBEDDER=hash node scripts/stress.mjs",
+    "stress:local": "EMBEDDER=local node scripts/stress.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
+    "@huggingface/transformers": "^4.2.0",
     "@modelcontextprotocol/client": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
-    "chromadb": "^3.5.0",
     "zod": "^4.5.1"
   },
   "type": "module"
