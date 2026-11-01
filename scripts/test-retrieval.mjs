@@ -36,3 +36,30 @@ test('VectorIndex ranks the relevant chunk first', async () => {
   assert.equal(hits[0].source, 'a', 'the cat document should rank first');
   assert.ok(hits[0].score >= hits[1].score);
 });
+
+test('VectorIndex.load rejects an index built with a different embedder', async () => {
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'idx-'));
+  try {
+    const path = join(dir, 'index.json');
+    const built = new VectorIndex(makeHashEmbedder(384));
+    await built.addDocuments([{ source: 'a', text: 'hello world' }]);
+    await built.save(path);
+
+    // same embedder: loads
+    assert.equal(await new VectorIndex(makeHashEmbedder(384)).load(path), 1);
+    // different embedder: refuses
+    await assert.rejects(new VectorIndex(makeHashEmbedder(128)).load(path), /built with embedder "hash:384"/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('VectorIndex.load explains how to build a missing index', async () => {
+  await assert.rejects(
+    new VectorIndex(makeHashEmbedder()).load('/nonexistent/index.json'),
+    /Index file not found.*npm run build-index/,
+  );
+});

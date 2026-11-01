@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        # @modelcontextprotocol/server and /client require Node >= 20
+        node-version: [20.x, 22.x, 24.x]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: npm
+
+    # --ignore-scripts skips the onnxruntime-node binary download; the tests use the
+    # hash embedder, which needs no native code.
+    - name: Install
+      run: npm ci --ignore-scripts
+
+    - name: Unit tests
+      run: npm test
+
+    - name: Build index (hash embedder)
+      run: npm run build-index:offline
+
+    - name: MCP integration test
+      run: npm run test:mcp
+
+    - name: Stress test
+      run: npm run stress -- search_docs 500 20

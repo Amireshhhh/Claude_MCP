@@ -37,7 +37,12 @@ const embedder = process.env.EMBEDDER === 'hash'
   : await makeLocalEmbedder();
 
 const index = new VectorIndex(embedder);
-await index.load(join(root, 'data', 'index.json'));
+try {
+  await index.load(join(root, 'data', 'index.json'));
+} catch (err) {
+  console.error(`[anthropic-docs-mcp] ${err.message}`);
+  process.exit(1);
+}
 
 // ---- build the server and register tools ----
 serveStdio(() => {

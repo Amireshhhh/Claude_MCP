@@ -22,7 +22,7 @@ export async function makeLocalEmbedder(model = 'Xenova/all-MiniLM-L6-v2') {
   // load this module and use the hash embedder instead.
   const { pipeline } = await import('@huggingface/transformers');
   const extractor = await pipeline('feature-extraction', model);
-  return async function embed(texts) {
+  async function embed(texts) {
     const out = [];
     for (const text of texts) {
       // mean-pooled, L2-normalised sentence embedding
@@ -30,7 +30,10 @@ export async function makeLocalEmbedder(model = 'Xenova/all-MiniLM-L6-v2') {
       out.push(Array.from(tensor.data));
     }
     return out;
-  };
+  }
+  // Identifies the vector space; stored in the index so a mismatched query embedder is rejected.
+  embed.id = `local:${model}`;
+  return embed;
 }
 
 // ---------- deterministic fallback ----------
@@ -50,7 +53,7 @@ export function makeHashEmbedder(dim = 384) {
     }
     return h >>> 0;
   };
-  return async function embed(texts) {
+  async function embed(texts) {
     return texts.map((text) => {
       const vec = new Array(dim).fill(0);
       const tokens = text.toLowerCase().match(/[a-z0-9]+/g) || [];
@@ -62,5 +65,7 @@ export function makeHashEmbedder(dim = 384) {
       norm = Math.sqrt(norm) || 1;
       return vec.map((v) => v / norm);
     });
-  };
+  }
+  embed.id = `hash:${dim}`;
+  return embed;
 }

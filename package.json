@@ -2,7 +2,10 @@
   "name": "anthropic-docs-mcp",
   "version": "1.0.0",
   "description": "MCP server exposing vector search over Anthropic docs, with a Claude agentic tool-use loop",
-  "main": "index.js",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build-index": "node scripts/build-index.mjs",
     "build-index:offline": "EMBEDDER=hash node scripts/build-index.mjs",
@@ -19,9 +22,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
     "@huggingface/transformers": "^4.2.0",
-    "@modelcontextprotocol/client": "^2.0.0",
-    "@modelcontextprotocol/server": "^2.0.0",
-    "zod": "^4.5.1"
-  },
-  "type": "module"
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "zod": "^4.6.7"
+  }
 }

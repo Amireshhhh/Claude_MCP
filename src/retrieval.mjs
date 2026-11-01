@@ -100,11 +100,34 @@ export class VectorIndex {
   }
 
   async save(path) {
-    await writeFile(path, JSON.stringify({ records: this.records }, null, 0));
+    const payload = { embedder: this.embedder.id ?? null, records: this.records };
+    await writeFile(path, JSON.stringify(payload, null, 0));
   }
 
+  /**
+   * Load a saved index. Throws if the file is missing, or if it was built with a
+   * different embedder than this index uses (vectors from two embedders live in
+   * different spaces, so comparing them gives meaningless scores without any error).
+   */
   async load(path) {
-    const raw = JSON.parse(await readFile(path, 'utf8'));
+    let text;
+    try {
+      text = await readFile(path, 'utf8');
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        throw new Error(`Index file not found: ${path}. Build it first with "npm run build-index" (or "npm run build-index:offline").`);
+      }
+      throw err;
+    }
+    const raw = JSON.parse(text);
+    const expected = this.embedder.id ?? null;
+    const actual = raw.embedder ?? null;
+    if (expected !== actual) {
+      throw new Error(
+        `Index ${path} was built with embedder "${actual ?? 'unknown (old index format)'}" ` +
+        `but the current embedder is "${expected}". Rebuild the index with the same EMBEDDER setting you query with.`,
+      );
+    }
     this.records = raw.records;
     return this.records.length;
   }

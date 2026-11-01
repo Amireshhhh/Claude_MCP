@@ -2,3 +2,4 @@ node_modules/
 .env
 data/index.json
 *.log
+.DS_Store
